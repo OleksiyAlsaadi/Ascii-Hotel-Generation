@@ -20,7 +20,7 @@ using namespace std;
 #define gotoxy(x,y) printf("\033[%d;%dH",(y),(x))
 
 enum category{Air, Cloud, Grass, Pavement, Wall, Floor, Lamp, Window, Door, Metal, MetalF, Flicker,
-                Empty, Wood, WallLight, StreetLight};
+                Empty};
 
 void printT(int x, int y, string s, int F_R, int F_G, int F_B,   int B_R, int B_G, int B_B){
     gotoxy(x+1,y+1);
@@ -34,7 +34,7 @@ int turns = 0;
 int fresh_all = 2;
 const int sizex = 128;
 const int sizey = 128;
-const int sizez = 18;
+const int sizez = 16;
 
 int px = 64;
 int py = 64;
@@ -52,19 +52,17 @@ int f_b[sizez][sizey][sizex];
 int b_r[sizez][sizey][sizex];
 int b_g[sizez][sizey][sizex];
 int b_b[sizez][sizey][sizex];
-float light_arr_r[sizez][sizey][sizex];
-float light_arr_g[sizez][sizey][sizex];
-float light_arr_b[sizez][sizey][sizex];
+float light_arr[sizez][sizey][sizex];
 int blocks[sizez][sizey][sizex];
 int extra[sizez][sizey][sizex];
 float mixture[sizez][sizey][sizex];
 
-float surroundingTilesFour(int z, int y, int x, enum category against){
+float surroundingTilesFour(int y, int x, enum category against){
     float a = 0;
-    if (tiles[z][y][x+1] == against) a+=1;
-    if (tiles[z][y][x-1] == against) a+=1;
-    if (tiles[z][y+1][x] == against) a-=1;
-    if (tiles[z][y-1][x] == against) a-=1;
+    if (tiles[camz][y][x+1] == against) a+=1;
+    if (tiles[camz][y][x-1] == against) a+=1;
+    if (tiles[camz][y+1][x] == against) a+=1;
+    if (tiles[camz][y-1][x] == against) a+=1;
     return a;
 }
 
@@ -97,14 +95,14 @@ float surroundingMixtureAdj(int z, int y, int x, float against){
 
 void rgb(int z, int y, int x, int a, int b, int c, int d, int e, int f){
     float v = mixture[z][y][x];
-    // if (v < 0.0){ mixture[z][y][x] = 0; v = 0; } 
-    // if (v > 50.0){ mixture[z][y][x] = 50.0; v = 50.0; } 
+    if (v < 0.0){ mixture[z][y][x] = 0; v = 0; } 
+    if (v > 50.0){ mixture[z][y][x] = 50.0; v = 50.0; } 
     f_r[z][y][x] = a - v*a;
     f_g[z][y][x] = b - v*b;
-    f_b[z][y][x] = c + v*c;
+    f_b[z][y][x] = c;// v*c;
     b_r[z][y][x] = d - v*d;
     b_g[z][y][x] = e - v*e;
-    b_b[z][y][x] = f + v*f;
+    b_b[z][y][x] = f;// + v*f;
 
     if (f_r[z][y][x] > 255) f_r[z][y][x] = 255;
     if (f_g[z][y][x] > 255) f_g[z][y][x] = 255;
@@ -159,47 +157,20 @@ float calcLighting(int posx, int posy, int posz, int x, int y, int z, float brig
     return 0;
 }
 
-enum time{Day, Dawn, Night};
-enum time TIME = Day;
-float sky_r, sky_g, sky_b;
-
 void lightAll(){
 
     for (int z = 0; z < sizez; z++) {
         for (int y = 0; y < sizey; y++) {
             for (int x = 0; x < sizex; x++) {
-                light_arr_r[z][y][x] = 0;
-                light_arr_g[z][y][x] = 0;
-                light_arr_b[z][y][x] = 0;
+                light_arr[z][y][x] = 0;
             }
         }
-    }
-
-    float r = 1; float g = 1; float b = 1;
-    if (TIME == Dawn) g = .5;
-    if (TIME == Night){
-        r = .1;
-        g = .1;
-        b = 1;
     }
 
 
     //Calc Lighting
     for (int zz = 0; zz < sizez; zz++) { 
-    for (int yy = 0; yy < sizey; yy++) {
-    for (int xx = 0; xx < sizex; xx++) {
-
-        if ( (blocks[zz][yy][xx] == 0 || blocks[zz][yy][xx] == -1)){ //Always lit
-            if (TIME != Night){
-                light_arr_r[zz][yy][xx] = r;
-                light_arr_g[zz][yy][xx] = g;
-                light_arr_b[zz][yy][xx] = b;
-            }
-        }
-
-    }}}
-
-    for (int zz = 0; zz < sizez; zz++) { 
+    // int zz = camz;
     for (int yy = 0; yy < sizey; yy++) {
     for (int xx = 0; xx < sizex; xx++) {
 
@@ -209,56 +180,42 @@ void lightAll(){
                 for (int y = 0; y < sizey; y++) {
                     for (int x = 0; x < sizex; x++) {
                         float value;
-                        if (blocks[z][y][x] == 4 && light_arr_b[z][y][x] == 0 && TIME != Night){
-                            //For Half light partially
-                            light_arr_r[z][y][x] += 0.4 * r;
-                            light_arr_g[z][y][x] += 0.4 * g;
-                            light_arr_b[z][y][x] += 0.4 * b;
-                        }
+                        if (blocks[z][y][x] == 4 && light_arr[z][y][x] == 0) 
+                            light_arr[z][y][x] += 0.4;
 
-                        int b = 10;
-                        if (tiles[zz][yy][xx] == Flicker || tiles[zz][yy][xx] == StreetLight){
-                            b = 5;
+                        if ( blocks[z][y][x] == 0 || blocks[z][y][x] == -1 ) //Always lit
+                            value = 1;
+                        else{
+                            int b = 10;
+                            if (tiles[zz][yy][xx] == Flicker){
+                                b = 5;
+                            }
+                            value = calcLighting(xx,yy,zz, x, y, z, b);       
+                            if (value <= 0) value = 0;
                         }
-                        value = calcLighting(xx,yy,zz, x, y, z, b);       
-                        if (value <= 0) value = 0;
-
-                        if (tiles[zz][yy][xx] == Window && tiles[z][y][x] != Window && TIME != Day){
-                            light_arr_r[z][y][x] += value * r;
-                            light_arr_g[z][y][x] += value * g;
-                            light_arr_b[z][y][x] += value * b;
-                        }else if (tiles[zz][yy][xx] == Door && tiles[z][y][x] != Door && TIME != Day){
-                            light_arr_r[z][y][x] += value * r;
-                            light_arr_g[z][y][x] += value * g;
-                            light_arr_b[z][y][x] += value * b;
-                        }else{
-                            light_arr_r[z][y][x] += value;
-                            light_arr_g[z][y][x] += value;
-                            light_arr_b[z][y][x] += value;
-                        }
-                        if (light_arr_r[z][y][x] > 1) light_arr_r[z][y][x] = 1;
-                        if (light_arr_g[z][y][x] > 1) light_arr_g[z][y][x] = 1;
-                        if (light_arr_b[z][y][x] > 1) light_arr_b[z][y][x] = 1;
+                        light_arr[z][y][x] += value;
+                        if (light_arr[z][y][x] > 1) light_arr[z][y][x] = 1;
                     }
                 }
             // }
         }else{
-            /*if (( blocks[zz][yy][xx] == 0 || blocks[zz][yy][xx] == -1) && TIME != Night){ //Always lit
-                light_arr_r[zz][yy][xx] = r;
-                light_arr_g[zz][yy][xx] = g;
-                light_arr_b[zz][yy][xx] = b;
-            }*/
+            if ( blocks[zz][yy][xx] == 0 || blocks[zz][yy][xx] == -1 ){ //Always lit
+                light_arr[zz][yy][xx] = 1;
+            }
         }
-        if (blocks[zz][yy][xx] == 4 && light_arr_b[zz][yy][xx] == 0 && TIME != Night){ //For air and no light on level
-            light_arr_r[zz][yy][xx] += .4 * r;
-            light_arr_g[zz][yy][xx] += .4 * g;
-            light_arr_b[zz][yy][xx] += .4 * b;
+        if (blocks[zz][yy][xx] == 4 && light_arr[zz][yy][xx] == 0){ //For air and no light on level
+            light_arr[zz][yy][xx] += .4;
         }
 
     }}}
 }
 
+float sky_r = 1; float sky_g = 150; float sky_b = 250;
+
 void genRandom(int z){
+    // int sky = rand()%3;
+    // if (sky == 1){ sky_r = 250;  sky_g = 150;  sky_b = 250; }
+    // if (sky == 2){ sky_r = 250;  sky_g = 250;  sky_b = 1; }
 
     int w = rand()%5+16;
     int h = rand()%(22-w)+11;
@@ -286,7 +243,7 @@ void genRandom(int z){
             }
             if (z > 8 + 2 && z < 8 + 5){ // Clouds form above
                 if (rand()%2){
-                    // mixture[z][y][x] = rand()%10 / 10.0;
+                    mixture[z][y][x] = rand()%10 / 10.0;
                 }
             }
 
@@ -366,7 +323,6 @@ string chooseWall(enum category c, int z, int y, int x, int rando){
 
 
 void genRoad(){
-    int skip = 0;
     int shift = rand()%15-7;
     if (shift == 0) shift = 1;
     for (int y = 0; y < sizey; y++) {
@@ -378,11 +334,6 @@ void genRoad(){
                 int s = rand()%16; int d = 40;
                 if (x == sizex/2-26+ys || x == sizex/2-32+ys) d = 0;
                 rgb(camz, y,x, 200,200,200,  120-s-d,120-s-d,120-s-d);
-                skip++;
-                if (skip >= 100 && d == 0){
-                    tiles[camz][y][x] = StreetLight;
-                    skip = 0;
-                }
             }
         }
     }
@@ -408,9 +359,6 @@ void genColors(int = -1, int = -1, int = -1);
 
 void genColors(int oz, int oy, int ox){
     // printf("t");
-    if (TIME == Day){ sky_r = 1; sky_g = 150; sky_b = 250; }
-    if (TIME == Dawn){ sky_r = 250; sky_g = 100; sky_b = 150; }
-    if (TIME == Night){ sky_r = 0; sky_g = 0; sky_b = 0; }
 
     for (int z = 0; z < sizez; z++) {
         for (int y = 0; y < sizey; y++) {
@@ -424,55 +372,42 @@ void genColors(int oz, int oy, int ox){
                     blocks[z][y][x] = 4; //Half light naturally
                     int r = rand() % 15;
                     int six[6];
-                    float d = searchBelow(z,y,x,six, word[z][y][x]);
+                    float d = searchBelow(z,y,x,six, word[z][y][x])+1;
                     if (d > 2) d = 2;
 
-                    if (d == 1){ //One level above (just faded color)
-                        six[0] *= .9;
-                        six[1] *= .9;
-                        six[2] *= .9;
-                        six[3] *= .9;
-                        six[4] *= .9;
-                        six[5] *= .9;
-                    }else{ //More than one level above, color of light
-                        for(int n = 0; n < 3; n++)
-                            six[n] = (six[0] + six[1] + six[2])/3;
-                        for(int n = 3; n < 6; n++)
-                            six[n] = (six[4] + six[5] + six[3])/3;
+                    for(int n = 0; n < 3; n++)
+                        six[n] = (six[0] + six[1] + six[2])/3;
+                    for(int n = 3; n < 6; n++)
+                        six[n] = (six[4] + six[5] + six[3])/3;
 
-                        six[0]*=1.0/d; six[1]*=1.0/d; six[2]*=1.0/d;
-                        six[3]*=1.0/d; six[4]*=1.0/d; six[5]*=1.0/d;
+                    six[0]*=1.0/d; six[1]*=1.0/d; six[2]*=1.0/d;
+                    six[3]*=1.0/d; six[4]*=1.0/d; six[5]*=1.0/d;
 
-                        six[0] = six[0] + (sky_r+r)*(d/6); six[1] = six[1] + (sky_g+r)*(d/6); six[2] = six[2] + (sky_b+r)*(d/6);
-                        six[3] = six[3] + (sky_r+r)*(d/6); six[4] = six[4] + (sky_g+r)*(d/6); six[5] = six[5] + (sky_b+r)*(d/6);
-                        if (six[0] > sky_r) six[0] = sky_r+r;
-                        if (six[1] > sky_g) six[1] = sky_g+r;
-                        if (six[2] > sky_b) six[2] = sky_b+r;
-                        if (six[3] > sky_r) six[3] = sky_r+r;
-                        if (six[4] > sky_g) six[4] = sky_g+r;
-                        if (six[5] > sky_b) six[5] = sky_b+r;
-                    }
+                    six[0] = six[0] + (sky_r+r)*(d/6); six[1] = six[1] + (sky_g+r)*(d/6); six[2] = six[2] + (sky_b+r)*(d/6);
+                    six[3] = six[3] + (sky_r+r)*(d/6); six[4] = six[4] + (sky_g+r)*(d/6); six[5] = six[5] + (sky_b+r)*(d/6);
+                    if (six[0] > sky_r) six[0] = sky_r+r;
+                    if (six[1] > sky_g) six[1] = sky_g+r;
+                    if (six[2] > sky_b) six[2] = sky_b+r;
+                    if (six[3] > sky_r) six[3] = sky_r+r;
+                    if (six[4] > sky_g) six[4] = sky_g+r;
+                    if (six[5] > sky_b) six[5] = sky_b+r;
                     rgb(z,y,x, six[0], six[1], six[2],   six[3], six[4], six[5]);
                 }
+                else if (tiles[z][y][x] == Cloud){ //Cloud
+                    blocks[z][y][x] = 4; //No light naturally
+                    word[z][y][x] = "  ";
+                    int s = rand()%15;
+                    rgb(z,y,x, 254,254,254,  254-s,254-s,254-s);
+                }
 
-                int f = fresh[z][y][x]*20; 
+                int f = fresh[z][y][x]*15; 
                 if (tiles[z][y][x] == Grass){ //Grass
-                    // blocks[z][y][x] = 0;
-                    int r = rand() % 25 + 1;
-                    if (z > camz) r = rand()% 5;
-                    if (r == 0) word[z][y][x] = "o ";
+                    int r = rand() % 25;
+                    if (r == 0) word[z][y][x] = " '";
                     if (r == 1) word[z][y][x] = " ,";
                     if (r == 2) word[z][y][x] = "' ";
                     if (r == 3) word[z][y][x] = ", "; 
-                    if (r == 4) word[z][y][x] = " '";
-                    rgb(z,y,x, 100-f, 255-rand() % 100-f, 100-f,   1, rand() % 25+75-f, 1);
-                }
-                if (tiles[z][y][x] == Wood){
-                    int s = rand() % 25;
-                    int r = rand() % 2;
-                    if (r == 0) word[z][y][x] = " O";
-                    else word[z][y][x] = " o";
-                    rgb(z,y,x, 180,150,80,  125-s,75-s,40-s);
+                    rgb(z, y,x, 100-f, 255-rand() % 100-f, 100-f,   1, rand() % 25+75-f, 1);
                 }
                 else if (tiles[z][y][x] == Floor){ //Floor
                     word[z][y][x] = "  "; 
@@ -499,8 +434,7 @@ void genColors(int oz, int oy, int ox){
                 else if (tiles[z][y][x] == Metal){
                     word[z][y][x] = chooseWall(Metal, z,y,x,0);
                     blocks[z][y][x] = -2; //blocks and unlit
-                    if (surroundingTilesAdj(z,y,x,Grass) 
-                        || surroundingTilesAdj(z,y,x,Pavement)) blocks[z][y][x] = -1;
+                    if (surroundingTilesAdj(z,y,x,Grass)) blocks[z][y][x] = -1;
                     int s = rand()%15;
                     rgb(z,y,x, 200-60,200-60,200-60,  100-s,100-s,100-s);
                 }
@@ -524,29 +458,10 @@ void genColors(int oz, int oy, int ox){
                     }
                 }
                 else if (tiles[z][y][x] == Door){ //Door
-                     
+                    blocks[z][y][x] = -1; //Blocks light and is always lit
                     word[z][y][x] = "[]";
                     int s = rand()%15;
-                    if (extra[z][y][x] == 1){
-                        rgb(z,y,x, 200,200,200,  90-s,90-s,90-s);
-                        blocks[z][y][x] = -1; //Blocks and unlit
-                    }else{
-                        rgb(z,y,x, 100,200,200,  60-s,110-s,110-s);
-                        blocks[z][y][x] = 2;
-                    }
-                }
-                else if (tiles[z][y][x] == WallLight){ //Door
-                    blocks[z][y][x] = 2; //Generate Light
-                    word[z][y][x] = "<>";
-                    int s = rand()%15;//35+100-35;
-                    rgb(z,y,x, 255,255,1,  160-s,160-s,160-s);
-                    fresh[z][y+1][x+1] = 1;
-                }
-                else if (tiles[z][y][x] == StreetLight){ //Door
-                    blocks[z][y][x] = 2; //Generate Light
-                    word[z][y][x] = "|*";
-                    int s = rand()%15;//35+100-35;
-                    rgb(z,y,x, 255,255,1,  120-s,120-s,120-s);
+                    rgb(z,y,x, 100,200,200,  60-s,110-s,110-s);
                 }
                 else if (tiles[z][y][x] == Lamp){ //Lamp
                     blocks[z][y][x] = 2; //Generate light
@@ -601,7 +516,7 @@ int Determine(enum category against, enum category adj){
 
             int f = surroundingTilesAdj(z,j,i,adj);
 
-            if ( tiles[z][j][i] == against && surroundingTilesFour(camz,j,i,adj) && floor(f) == f){
+            if ( tiles[z][j][i] == against && surroundingTilesFour(j,i,adj) && floor(f) == f){
                 int a = 0;
                 if ( tiles[z][j+1][i] == against || tiles[z][j-1][i] == against 
                     || tiles[z][j][i+1] == against || tiles[z][j][i-1] == against ) a++;
@@ -624,7 +539,7 @@ void Add(int z, enum category against, enum category replace, int find, enum cat
 
             int f = surroundingTilesAdj(z,j,i,adj);
 
-            if ( tiles[z][j][i] == against && surroundingTilesFour(camz,j,i,adj) && floor(f) == f){
+            if ( tiles[z][j][i] == against && surroundingTilesFour(j,i,adj) && floor(f) == f){
                 int a = 0;
                 if ( tiles[z][j+1][i] == against || tiles[z][j-1][i] == against 
                     || tiles[z][j][i+1] == against || tiles[z][j][i-1] == against ) a++;
@@ -826,7 +741,6 @@ void FloodFill(int z, int y, int x, enum category find, enum category change, in
         if (a) break;
     }  
     if (flood_floor == 0){
-        int no_door = 1;
         for (int k = 0; k < 2; k++){  //Two times to get the weird conditions   
             int l = 0; 
             for (auto elem : leaves){
@@ -834,48 +748,17 @@ void FloodFill(int z, int y, int x, enum category find, enum category change, in
                     && surroundingTilesAdj(z,elem.L,elem.R,Wall) <= 2.5 
                     && surroundingTilesAdj(z,elem.L,elem.R,Wall) != 1.5 
                     && surroundingTilesAdj(z,elem.L,elem.R,Window) == 0 
-                    && surroundingTilesAdj(z,elem.L,elem.R,Door) == 0){
-
+                    && surroundingTilesAdj(z,elem.L,elem.R,Door) == 0 ){
                     tiles[z][elem.L][elem.R] = Wall; //Wall on edges
-                    if (abs(surroundingTilesFour(z,elem.L,elem.R,Wall)) == 2 &&
-                        abs(surroundingTilesFour(z,elem.L,elem.R,Floor)) == 2){
-                        extra[z][elem.L][elem.R] = 2;
-                        no_door++;
-                    }
+                    extra[z][elem.L][elem.R] = 1;
                 }else if (l == 0 && rand()%40 == 0
-                    && surroundingTilesAdj(z, elem.L,elem.R, Wall)){
+                    && surroundingTilesAdj(z, elem.L,elem.R, Wall) ){
                     tiles[z][elem.L][elem.R] = Lamp; // lamp
                     l = 1;
                 }
 
             }
         }
-        //Add random door to room
-        int count = rand() % no_door + 1;
-        no_door = 1;
-        for (int y = 0; y < sizey; y++){
-            for (int x = 0; x < sizex; x++){
-                if (extra[z][y][x] == 2){
-                    extra[z][y][x] = 1;
-                    no_door++;
-                }
-                if (no_door == count){
-                    tiles[z][y][x] = Door;
-                    no_door++;
-                    for(int jj = 0; jj < 10; jj++){
-                    int r = rand() % 2;
-                    if (r && tiles[z][y][x+1] == Wall){ tiles[z][y][x+1] = WallLight; break; }
-                    r = rand() % 2; 
-                    if (r && tiles[z][y][x-1] == Wall){ tiles[z][y][x-1] = WallLight;  break; }
-                    r = rand() % 2; 
-                    if (r && tiles[z][y+1][x] == Wall){ tiles[z][y+1][x] = WallLight;  break; }
-                    r = rand() % 2; 
-                    if (r && tiles[z][y-1][x] == Wall){ tiles[z][y-1][x] = WallLight;  break; }
-                    }
-                }
-            }
-        }
-
     }else{
         //Handles case of creating a new floor above
         int l = 0; 
@@ -890,7 +773,7 @@ void FloodFill(int z, int y, int x, enum category find, enum category change, in
                 tiles[z][elem.L][elem.R] = Floor; // floor
                 extra[z][elem.L][elem.R] = 0;
                 if (l == 0 && rand()%40 == 0){
-                    // l = 1; tiles[z][elem.L][elem.R] = Lamp;  // single lamp
+                    l = 1; tiles[z][elem.L][elem.R] = Lamp;  // single lamp
                 }
             }
 
@@ -898,8 +781,7 @@ void FloodFill(int z, int y, int x, enum category find, enum category change, in
         //Floors next to air become walls
         for (int y = 0; y < sizey; y++){
             for (int x = 0; x < sizex; x++){
-                if ( (tiles[z][y][x] == Floor || tiles[z][y][x] == Lamp)
-                    && surroundingTilesAdj(z,y,x,Air) ){
+                if (tiles[z][y][x] == Floor && surroundingTilesAdj(z,y,x,Air) ){
                     tiles[z][y][x] = Wall;
                 }
             }
@@ -908,19 +790,6 @@ void FloodFill(int z, int y, int x, enum category find, enum category change, in
 
     }
 
-}
-
-void genBalcony(int zz, int yy, int xx){
-    for (int y = -1; y <= 1; y++){
-        for (int x = -1; x <= 1; x++){
-            if (tiles[zz][yy+y][xx+x] == Air){
-                tiles[zz][yy+y][xx+x] = Pavement;
-                word[zz][yy+y][xx+x] = "  ";
-            }
-        }
-    }
-    tiles[zz][yy][xx] = Door;
-    extra[zz][yy][xx] = rand()%2;
 }
 
 void genElevator(int zz, int yy, int xx){
@@ -939,39 +808,6 @@ void genElevator(int zz, int yy, int xx){
     tiles[zz+1][yy-1][xx+1] = Flicker;
 }
 
-void genTrees(int z){
-    for (int y = 0; y < sizey; y++){
-        for (int x = 0; x < sizex; x++){
-
-            if ( (tiles[z][y][x] == Grass && rand()%400 == 0) 
-                || 
-                (tiles[z][y][x] == Grass && rand()%50 == 0 && tiles[z+3][y][x] == Air && light_arr_r[z+3][y][x] > .5)  ){
-                
-                tiles[z][y][x] = Wood;
-                int hi = rand()%4+4;
-                for (int t = 1; t < hi; t++){
-                    int tx = 0;
-                    int ty = 0;
-                    int hi2 = rand()%6+1;
-                    for (int tz = 1; tz < hi2; tz++){
-                        tx += rand()%3-1;
-                        ty += rand()%3-1;
-                        if (tiles[z+tz][y+ty][x+tx] == Air) tiles[z+tz][y+ty][x+tx] = Wood;
-                        if (tiles[z+tz][y+ty+1][x+tx] == Air) tiles[z+tz][y+ty+1][x+tx] = Grass;
-                        if (tiles[z+tz][y+ty-1][x+tx] == Air) tiles[z+tz][y+ty-1][x+tx] = Grass;
-                        if (tiles[z+tz][y+ty][x+tx+1] == Air) tiles[z+tz][y+ty][x+tx+1] = Grass;
-                        if (tiles[z+tz][y+ty][x+tx-1] == Air) tiles[z+tz][y+ty][x+tx-1] = Grass;
-                        if (tiles[z+tz+1][y+ty][x+tx] == Air) tiles[z+tz+1][y+ty][x+tx] = Grass;
-                        fresh[z][y+ty][x+tx] = 1; //Make grass below darker
-                    }
-                }
-            }
-
-        }
-    }
-
-}
-
 void genRooms(){
     int p = rand()%10+10;
     for (int y = 0; y < sizey; y++){
@@ -987,24 +823,17 @@ void genRooms(){
 
 bool checkMap(){
     int a = 0;
-    int w = 0;
-    int d = 0;
     for (int y = 0; y < sizey; y++){
         for (int x = 0; x < sizex; x++){
-            int z = camz; 
+            int z = camz;
             if (tiles[z][y][x] == Door && surroundingTilesAdj(z,y,x,Pavement)){ //Check door near pavement
                 a = 1;
             }
             if (tiles[z][y][x] == Wall && surroundingTilesAdj(z,y,x,Wall) == 3.5){
                 return false;
             }
-            if (tiles[z+3][y][x] == Window){
-                w = 1;
-            }
         }
     }
-    if (w == 0)
-        return false;
     if (a == 1)
         return true;
     
@@ -1025,8 +854,6 @@ int main(int argc, char *argv[]){
     curs_set(0);
     start_color();
     // timeout(2000);
-
-    ch = getch();
 
     int twice_draw = 0;
 
@@ -1091,9 +918,6 @@ int main(int argc, char *argv[]){
 
                         if (mult_floors != topF){
                             tiles[z+1][y][x] = tiles[z][y][x];
-                            if (tiles[z][y][x] == Wall && rand()%20 == 0 && surroundingTilesAdj(z,y,x,Floor)==1.5){
-                                genBalcony(z,y,x);
-                            }
                         }else{
                             tiles[z+1][y][x] = Pavement;
                             word[z+1][y][x] = word[z][y][x];
@@ -1109,17 +933,8 @@ int main(int argc, char *argv[]){
                     genColors(z+1,y,x);
                 }
             }
-            //Split into room on mult floors
-            addTile(z,Floor,Floor,Floor); //Floor to floor, adj to floor, size of fill
-            FloodFill(addz, addy, addx, Floor,Wall,  rand()%5+3);
         }
-        for(int mult_floors = 1; mult_floors <= topF+1; mult_floors++){
-            addTile(z+mult_floors, Floor, Lamp, Floor);
-            addTile(z+mult_floors, Wall, Window, Floor);
-        }
-
-        lightAll();
-        genTrees(camz);
+        addTile(topF, Pavement, Lamp, Pavement);
 
         genColors();
         lightAll();
@@ -1148,15 +963,40 @@ int main(int argc, char *argv[]){
                 if (fresh[z][y][x] == 1 || fresh_all == 1){
                     fresh[z][y][x] = 0;
 
-                    float v1 = light_arr_r[z][y][x];
-                    float v2 = light_arr_g[z][y][x];
-                    float v3 = light_arr_b[z][y][x];
+                    float v1 = light_arr[z][y][x];
+                    float v2 = light_arr[z][y][x];
+                    float v3 = light_arr[z][y][x];
 
                     if (x == px && y == py){ //Display Player
                         printT(i*2,j, "Al" ,255,255,1,  200,200,1);
                     }else{ //Display Tile
                         printT(i*2,j, word[z][y][x] ,f_r[z][y][x]*v1, f_g[z][y][x]*v2, f_b[z][y][x]*v3, 
                             b_r[z][y][x]*v1, b_g[z][y][x]*v2, b_b[z][y][x]*v3);
+                    }
+
+                    // Animate Tile
+                    float v = mixture[z][y][x];
+                    if (mixture[z][y][x] > 0.0){
+                        mixture[z][y][x] -= v*.5+.05;
+                        if (mixture[z][y][x] <= 0) mixture[z][y][x] = 0;
+                        if (tiles[z][y][x] == Air){
+                        mixture[z][y][x+1] += v*.1;
+                        mixture[z][y][x-1] += v*.1;
+                        mixture[z][y+1][x] += v*.1;
+                        mixture[z][y-1][x] += v*.1;
+                        if (j <= 1 || i <= 1 || j >= LINES-2 || i >= COLS/2-2){
+                            mixture[z][y][x] -= 1;
+                        }
+                        }
+                        genColors(z,y,x);
+                    }
+                    
+                    if (tiles[z][y][x] == Air){
+                        if (surroundingMixtureAdj(z,y,x,v) >= 6
+                            && surroundingMixtureAdj(z,y,x,v) <= 6){
+                            mixture[z][y][x] += 2;
+                        }
+                        genColors(z,y,x);
                     }
 
                 }
@@ -1191,14 +1031,6 @@ int main(int argc, char *argv[]){
         if (ch == 47){ //Bottom
             twice_draw = 2;
             pz--;
-        }
-        if (ch == 93){ //Top
-            if (TIME == Day) TIME = Dawn;
-            else if (TIME == Dawn) TIME = Night;
-            else if (TIME == Night) TIME = Day;
-            lightAll();
-            // genColors();
-            twice_draw = 2;
         }
         if (ch == KEY_F(1))
             break;
